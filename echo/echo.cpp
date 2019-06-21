@@ -7,28 +7,29 @@ using namespace std;
 
 int main(int argc, const char* argv[])
 {
-	if (argc > 2) {
-		cout << "use proper parameter [option:[/server][/client]" << endl;
-		return 0;
-	}
+	//if (argc > 2) {
+	//	cout << "use proper parameter [option:[/server][/client]" << endl;
+	//	return 0;
+	//}
 	Socket socket;
 
 	//echo server
-	if (_strcmpi(argv[1], "/server") == 0) {
-		socket.InitSocket();
-		socket.BindandListen(SERVER_PORT);
-		socket.StartServer();
-	}
-
+	//if (_strcmpi(argv[1], "/server") == 0) {
+	//	socket.InitSocket();
+	//	socket.BindandListen(SERVER_PORT);
+	//	socket.StartServer();
+	//}
 	//echo client
-	else if (_strcmpi(argv[1], "/client") == 0) {
-		socket.InitSocket();
-		socket.Connect(SERVER_IP, SERVER_PORT);
-	}
+	//else if (_strcmpi(argv[1], "/client") == 0) {
+	//	socket.InitSocket();
+	//	socket.Connect(SERVER_IP, SERVER_PORT);
+	//}
+	socket.InitSocket();
+	socket.Connect(SERVER_IP, SERVER_PORT);
 
-	else {
-		cout << "use proper parameter [option:[/server][/client]" << endl;
-		return 0;
-	}
+	//else {
+	//	cout << "use proper parameter [option:[/server][/client]" << endl;
+	//	return 0;
+	//}
 	return 0;
 }

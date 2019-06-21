@@ -126,7 +126,7 @@ bool Socket::Connect(const char* ip, USHORT port) {
 	servAddr.sin_addr.S_un.S_addr = inet_addr(ip);
 	servAddr.sin_port = htons(port);
 	if (connect(servSock, reinterpret_cast<SOCKADDR*>(&servAddr), sizeof(servAddr)) == SOCKET_ERROR) {
-		ErrorHandling("connect() error");
+		printf("connect() error\n");
 		cout << "ErrorCode:" << WSAGetLastError() << endl;
 		return false;
 	}
