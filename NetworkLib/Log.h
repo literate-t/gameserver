@@ -18,34 +18,34 @@ static char szLogInfoType_StringTable[][100] =
 		"LOG_NONE",
 		"LOG_INFO_LOW",													//0x00000001
 		"LOG_INFO_NORMAL",												//0x00000002
-		"LOG_INFO_LOW , LOG_INFO_NORMAL",								//0x00000003	
+		"LOG_INFO_LOW, LOG_INFO_NORMAL",								//0x00000003	
 		"LOG_INFO_HIGH",												//0x00000004	
-		"LOG_INFO_LOW , LOG_INFO_HIGH",									//0x00000005
-		"LOG_INFO_NORMAL , LOG_INFO_HIGH",								//0x00000006
-		"LOG_INFO_LOW , LOG_INFO_NORMAL , LOG_INFO_HIGH",				//0x00000007
+		"LOG_INFO_LOW, LOG_INFO_HIGH",									//0x00000005
+		"LOG_INFO_NORMAL, LOG_INFO_HIGH",								//0x00000006
+		"LOG_INFO_LOW, LOG_INFO_NORMAL, LOG_INFO_HIGH",					//0x00000007
 		"LOG_INFO_CRITICAL",											//0x00000008
-		"LOG_INFO_LOW , LOG_INFO_CRITICAL",								//0x00000009
-		"LOG_INFO_NORMAL , LOG_INFO_CRITICAL",							//0x0000000A
-		"LOG_INFO_LOW , LOG_INFO_NORMAL , LOG_INFO_CRITICAL",			//0x0000000B
-		"LOG_INFO_HIGH , LOG_INFO_CRITICAL",							//0x0000000C
-		"LOG_INFO_LOW , LOG_INFO_HIGH , LOG_INFO_CRITICAL",				//0x0000000D
-		"LOG_INFO_NORMAL , LOG_INFO_HIGH , LOG_INFO_CRITICAL",			//0x0000000E
+		"LOG_INFO_LOW, LOG_INFO_CRITICAL",								//0x00000009
+		"LOG_INFO_NORMAL, LOG_INFO_CRITICAL",							//0x0000000A
+		"LOG_INFO_LOW, LOG_INFO_NORMAL, LOG_INFO_CRITICAL",				//0x0000000B
+		"LOG_INFO_HIGH, LOG_INFO_CRITICAL",								//0x0000000C
+		"LOG_INFO_LOW, LOG_INFO_HIGH, LOG_INFO_CRITICAL",				//0x0000000D
+		"LOG_INFO_NORMAL, LOG_INFO_HIGH, LOG_INFO_CRITICAL",			//0x0000000E
 		"LOG_INFO_ALL",													//0x0000000F
 
 		"LOG_ERROR_LOW",												//0x00000010
 		"LOG_ERROR_NORMAL",												//0x00000020
-		"LOG_ERROR_LOW , LOG_ERROR_NORMAL",								//0x00000030	
+		"LOG_ERROR_LOW, LOG_ERROR_NORMAL",								//0x00000030	
 		"LOG_ERROR_HIGH",												//0x00000040	
-		"LOG_ERROR_LOW , LOG_ERROR_HIGH",								//0x00000050
-		"LOG_ERROR_NORMAL , LOG_ERROR_HIGH",							//0x00000060
-		"LOG_ERROR_LOW , LOG_ERROR_NORMAL , LOG_ERROR_HIGH",			//0x00000070
+		"LOG_ERROR_LOW, LOG_ERROR_HIGH",								//0x00000050
+		"LOG_ERROR_NORMAL, LOG_ERROR_HIGH",								//0x00000060
+		"LOG_ERROR_LOW, LOG_ERROR_NORMAL, LOG_ERROR_HIGH",				//0x00000070
 		"LOG_ERROR_CRITICAL",											//0x00000080
-		"LOG_ERROR_LOW , LOG_ERROR_CRITICAL",							//0x00000090
-		"LOG_ERROR_NORMAL , LOG_ERROR_CRITICAL",						//0x000000A0
-		"LOG_ERROR_LOW , LOG_ERROR_NORMAL , LOG_ERROR_CRITICAL",		//0x000000B0
-		"LOG_ERROR_HIGH , LOG_ERROR_CRITICAL",							//0x000000C0
-		"LOG_ERROR_LOW , LOG_ERROR_HIGH , LOG_ERROR_CRITICAL",			//0x000000D0
-		"LOG_ERROR_NORMAL , LOG_ERROR_HIGH , LOG_ERROR_CRITICAL",		//0x000000F0
+		"LOG_ERROR_LOW, LOG_ERROR_CRITICAL",							//0x00000090
+		"LOG_ERROR_NORMAL, LOG_ERROR_CRITICAL",							//0x000000A0
+		"LOG_ERROR_LOW, LOG_ERROR_NORMAL, LOG_ERROR_CRITICAL",			//0x000000B0
+		"LOG_ERROR_HIGH, LOG_ERROR_CRITICAL",							//0x000000C0
+		"LOG_ERROR_LOW, LOG_ERROR_HIGH, LOG_ERROR_CRITICAL",			//0x000000D0
+		"LOG_ERROR_NORMAL, LOG_ERROR_HIGH, LOG_ERROR_CRITICAL",			//0x000000F0
 		"LOG_ERROR_ALL",												//0x00000100
 		"LOG_ALL"														//0x00000200	
 };
@@ -95,8 +95,8 @@ struct sLogMsg
 struct sLogConfig
 {
 	////////////////////////////////////////////////////////////////////////////
-	//배열순서(파일[0],디비[1],윈도우[2],디버그창[3],udp[4])
-	//각배열에 출력하고싶은 LogInfo레벨을 or연산하여 넣는다.
+	//배열 순서(파일[0],디비[1],윈도우[2],디버그창[3],udp[4])
+	//각 배열에 출력하고 싶은 LogInfo 레벨을 or 연산하여 넣는다.
 	//예)파일에 LOG_INFO_NORMAL, 윈도우에 LOG_ALL
 	//s_eLogInfoType[ STORAGE_FILE ] = LOG_INFO_NORMAL
 	//s_eLogInfoType[ STORAGE_FILE ] = LOG_ALL
@@ -104,8 +104,7 @@ struct sLogConfig
 	char				s_szLogFileName[MAX_FILENAME_LENGTH];
 	//로그 파일의 형식을 지정한다. XML or TEXT 둘다도 가능하다
 	enumLogFileType		s_eLogFileType;
-	//TCP/UDP로 로그를 남길 IP , PORT , UDP로그를 사용하지 않는다면 값이 없
-	//어도 된다.
+	//TCP/UDP로 로그를 남길 IP , PORT , UDP로그를 사용하지 않는다면 값이 없어도 된다.
 	char				s_szIP[MAX_IP_LENGTH];
 	int					s_nUDPPort;
 	int					s_nTCPPort;
@@ -126,18 +125,18 @@ struct sLogConfig
 	sLogConfig() {
 		ZeroMemory(this, sizeof(sLogConfig));
 		s_dwProcessTick = DEFAULT_TICK;
-		s_nUDPPort = DEFAULT_UDPPORT;
-		s_nTCPPort = DEFAULT_TCPPORT;
-		s_dwFileMaxSize = 1024 * 50000;		//50MB 기본으로 설정 최대 100MB가 까지 가능
+		s_nUDPPort		= DEFAULT_UDPPORT;
+		s_nTCPPort		= DEFAULT_TCPPORT;
+		//50MB 기본으로 설정 최대 100MB가 까지 가능
+		s_dwFileMaxSize = 1024 * 50000;
 	}
-
 };
 
 class cLog : public Thread, public Singleton
 {
-	DECLARE_SINGLETON(cLog);	
-public:
+	DECLARE_SINGLETON(cLog);
 
+public:
 	cLog(void);
 	virtual ~cLog(void);
 

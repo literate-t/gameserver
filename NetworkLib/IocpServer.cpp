@@ -2,7 +2,7 @@
 
 unsigned int WINAPI CallWorkerThread(LPVOID p);
 unsigned int WINAPI CallProcessThread(LPVOID p);
-IOCPServer* IOCPServer::m_pIocpServer = NULL;
+IOCPServer* IOCPServer::m_pIocpServer = new IOCPServer();
 
 IOCPServer::IOCPServer(void)
 {
@@ -20,7 +20,7 @@ IOCPServer::~IOCPServer(void)
 	WSACleanup();
 }
 
-unsigned int WINAPI CallWorkerThread(LPVOID p) // 왜 한 번에 WorkerThread()를 호출하지 않고?
+unsigned int WINAPI CallWorkerThread(LPVOID p)
 {
 	IOCPServer* pServerSock = (IOCPServer*)p;
 	pServerSock->WorkerThread();
@@ -359,7 +359,7 @@ void IOCPServer::DoAccept(LPOVERLAPPED_EX lpOverlappedEx)
 	lpConnection->DecrementAcceptIoRefCount();  // ?
 
 	//remote address를 알아낸다.
-	GetAcceptExSockaddrs(lpConnection->m_szAddressBuf, 0, sizeof(SOCKADDR_IN) + 16,
+	GetAcceptExSockaddrs(lpConnection->m_addressBuff, 0, sizeof(SOCKADDR_IN) + 16,
 		sizeof(SOCKADDR_IN) + 16, &lpLocalSockAddr, &nLocalSockaddrLen,
 		&lpRemoteSockAddr, &nRemoteSockaddrLen);
 
@@ -379,7 +379,7 @@ void IOCPServer::DoAccept(LPOVERLAPPED_EX lpOverlappedEx)
 		CloseConnection(lpConnection);
 		return;
 	}
-	lpConnection->m_bIsConnect = true;
+	lpConnection->m_bIsConnected = true;
 	if (lpConnection->RecvPost(lpConnection->m_ringRecvBuffer.GetBeginMark(), 0) == false)
 	{
 		CloseConnection(lpConnection);
@@ -514,7 +514,7 @@ void IOCPServer::DoSend(LPOVERLAPPED_EX lpOverlappedEx, DWORD dwIoSize)
 	else	//모든 메시지를 다 보냈다면
 	{
 		lpConnection->m_ringSendBuffer.ReleaseBuffer(lpOverlappedEx->s_nTotalBytes);
-		InterlockedExchange((LPLONG)& lpConnection->m_bIsSend, TRUE);
+		InterlockedExchange((LPLONG)& lpConnection->m_bIsSent, TRUE);
 		lpConnection->SendPost(0);
 	}
 }

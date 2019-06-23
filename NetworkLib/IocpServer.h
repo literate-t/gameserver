@@ -31,16 +31,16 @@ public:
 
 	//////////////////////////////  순수 가상 함수   ///////////////////////////////
 	//client가 접속될때 호출되는 함수
-	virtual	bool	OnAccept(Connection* lpConnection) = 0;
+	virtual	bool	OnAccept(Connection* lpConnection);
 	//client에서 packet이 도착하여 순서 성 있는 패킷을 처리할 때 호출되는 함수
-	virtual	bool	OnRecv(Connection* lpConnection, DWORD dwSize, char* pRecvedMsg) = 0;
+	virtual	bool	OnRecv(Connection* lpConnection, DWORD dwSize, char* pRecvedMsg);
 	//client에서 packet이 도착하여 순서 성 없는 패킷을 처리할 때 호출되는 함수
-	virtual	bool	OnRecvImmediately(Connection* lpConnection, DWORD dwSize, char* pRecvedMsg) = 0;
+	virtual	bool	OnRecvImmediately(Connection* lpConnection, DWORD dwSize, char* pRecvedMsg);
 	//client 접속 종료시 호출되는 함수
-	virtual	void	OnClose(Connection* lpConnection) = 0;
+	virtual	void	OnClose(Connection* lpConnection);
 	//서버에서 ProcessThread가 아닌 다른 쓰레드에서 발생시킨 
 	//메시지가 순서 성있게 처리되야 한다면 이 함수를 사용.
-	virtual bool	OnSystemMsg(Connection* lpConnection, DWORD dwMsgType, LPARAM lParam) = 0;
+	virtual bool	OnSystemMsg(Connection* lpConnection, DWORD dwMsgType, LPARAM lParam);
 	/////////////////////////////////////////////////////////////////////////////////////
 
 	static IOCPServer* GetIocpServer() { return IOCPServer::m_pIocpServer; }
