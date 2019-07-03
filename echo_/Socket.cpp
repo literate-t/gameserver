@@ -1,6 +1,6 @@
 #include "Socket.h"
-#include "Protocol.h"
 #include <iostream>
+using namespace std;
 
 Socket::Socket() {
 	servSock = INVALID_SOCKET;
@@ -24,7 +24,7 @@ bool Socket::InitSocket() {
 		ErrorHandling("socket() error");
 		return false;
 	}
-	std::cout << "server socket initializing success" << std::endl;
+	cout << "server socket initializing success" << endl;
 	return true;
 }
 
@@ -59,7 +59,7 @@ bool Socket::BindandListen(USHORT port) {
 		ErrorHandling("listen() error");
 		return false;
 	}
-	std::cout << "server registry success" << std::endl;
+	cout << "server registry success" << endl;
 	return true;
 }
 
@@ -69,20 +69,20 @@ bool Socket::StartServer() {
 	SOCKADDR_IN		clntAddr;
 	int addrLen = sizeof(clntAddr);
 
-	std::cout << "server started" << std::endl;
+	cout << "server started" << endl;
 
 	if ((clntSock = accept(servSock, reinterpret_cast<SOCKADDR*>(&clntAddr), &addrLen)) == INVALID_SOCKET) {
 		ErrorHandling("accept() error");
 		return false;
 	}
-	sprintf_s(str, sizeof(str), "클라이언트 접속:IP(%s) SOCKET(%d)", inet_ntoa(clntAddr.sin_addr), (int)clntSock);
-	std::cout << str << std::endl;
+	sprintf_s(str, sizeof(str), "클라이언트 접속:IP(%s) SOCKET(%d)", inet_ntoa(clntAddr.sin_addr), clntSock);
+	cout << str << endl;
 
 	// 클라이언트가 메시지를 보내면 다시 클라이언트로 되돌려보낸다
 	while (true) {
 		int recvLen = recv(clntSock, sockBuf, BUF_SIZE, 0);
 		if (recvLen == 0) {
-			std::cout << "클라이언트와의 연결이 종료되었습니다." << std::endl;
+			cout << "클라이언트와의 연결이 종료되었습니다." << endl;
 			CloseSocket(clntSock);
 
 			//StartServer();
@@ -90,32 +90,32 @@ bool Socket::StartServer() {
 			// 클라이언트 연결 종료
 			CloseSocket(clntSock);
 			CloseSocket(servSock);
-			std::cout << "server terminated successfuly" << std::endl;
+			cout << "server terminated successfuly" << endl;
 			return true;
 		}
 
 		else if (recvLen == -1) {
-			std::cout << "StartServer() error recv() fail, ErrorCode:" << WSAGetLastError() << std::endl;
+			cout << "StartServer() error recv() fail, ErrorCode:" << WSAGetLastError() << endl;
 			CloseSocket(clntSock);
 			StartServer();
 			return false;
 		}
 		sockBuf[recvLen] = NULL;
-		std::cout << "메시지수신: 수신 bytes[" << recvLen << "], 내용: [" << sockBuf << "]" << std::endl;
+		cout << "메시지수신: 수신 bytes[" << recvLen << "], 내용: [" << sockBuf << "]" << endl;
 		int sendLen = send(clntSock, sockBuf, recvLen, 0);
 		if (sendLen == -1) {
-			std::cout << "StartServer() error send() fail, ErrorCode:" << WSAGetLastError() << std::endl;
+			cout << "StartServer() error send() fail, ErrorCode:" << WSAGetLastError() << endl;
 			CloseSocket(clntSock);
 			StartServer();
 			return false;
 		}
-		std::cout << "메시지송신: 송신 bytes[" << sendLen << "], 내용: [" << sockBuf << "]" << std::endl;
+		cout << "메시지송신: 송신 bytes[" << sendLen << "], 내용: [" << sockBuf << "]" << endl;
 	}
 
 	//// 클라이언트 연결 종료
 	//CloseSocket(clntSock);
 	//CloseSocket(servSock);
-	//std::cout << "server terminated successfuly" << std::endl;
+	//cout << "server terminated successfuly" << endl;
 	//return true;
 }
 
@@ -127,53 +127,39 @@ bool Socket::Connect(const char* ip, USHORT port) {
 	servAddr.sin_port = htons(port);
 	if (connect(servSock, reinterpret_cast<SOCKADDR*>(&servAddr), sizeof(servAddr)) == SOCKET_ERROR) {
 		printf("connect() error\n");
-		std::cout << "ErrorCode:" << WSAGetLastError() << std::endl;
+		cout << "ErrorCode:" << WSAGetLastError() << endl;
 		return false;
 	}
-
-	std::cout << "접속 성공" << std::endl;
-	PACKET packet;
-	static int recvCount = 0;
-	static int sendCount = 0;
+	cout << "접속 성공" << endl;
 	while (true) {
-		std::cout << ">>";
-		std::cin.getline(msg, 1024);
+		cout << ">>";
+		cin >> msg;
 		if (!(_strcmpi(msg, "q") || _strcmpi(msg, "Q"))) break;
-		ZeroMemory(&packet, sizeof(PACKET));
-		CopyMemory(packet.msg, msg, strlen(msg));
-		packet.length = strlen(msg) + PACKET_HEADER_SIZE;
-		int sendLen = send(servSock, (char*)&packet, packet.length, 0);
-		printf("send count:%d\n", ++sendCount);
-		//int sendLen = send(servSock, msg, (int)strlen(msg), 0);
+		
+		int sendLen = send(servSock, msg, strlen(msg), 0);
 		if (sendLen == -1) {
 			ErrorHandling("Socket::Connect() send() fail");
-			std::cout << "ErrorCode:" << WSAGetLastError() << std::endl;
+			cout << "ErrorCode:" << WSAGetLastError() << endl;
 			return false;
 		}
-		std::cout << "메시지송신: 송신bytes[" << sendLen << "], 내용:[" << msg << "]" << std::endl;
+		cout << "메시지송신: 송신bytes[" << sendLen << "], 내용:[" << msg << "]" << endl;
 
-		size_t strLen = strlen(msg);
-		int recvLen = 0;
-		while (true) {
-			recvLen += recv(servSock, &sockBuf[recvLen], BUF_SIZE-1, 0);
-			printf("recv count:%d\n", ++recvCount);
-			if (recvLen >= strLen) break;
-			if (recvLen == 0) {
-				std::cout << "클라이언트와의 연결이 종료되었습니다" << std::endl;
-				CloseSocket(servSock);
-				return false;
-			}
-			else if (recvLen == -1) {
-				ErrorHandling("Connect() recv() fail");
-				std::cout << "ErrorCode:" << WSAGetLastError() << std::endl;
-				return false;
-			}
+		int recvLen = recv(servSock, sockBuf, BUF_SIZE, 0);
+		if (recvLen == 0) {
+			cout << "클라이언트와의 연결이 종료되었습니다" << endl;
+			CloseSocket(servSock);
+			return false;
+		}
+		else if (recvLen == -1) {
+			ErrorHandling("Connect() recv() fail");
+			cout << "ErrorCode:" << WSAGetLastError() << endl;
+			return false;
 		}
 		sockBuf[recvLen] = NULL;
-		std::cout << "메시지수신: 수신bytes[" << recvLen << "], 내용:[" << sockBuf << "]" << std::endl;
+		cout << "메시지수신: 수신bytes[" << recvLen << "], 내용:[" << sockBuf << "]" << endl;
 	}
 	CloseSocket(servSock);
-	std::cout << "클라이언트 정상 종료" << std::endl;
+	cout << "클라이언트 정상 종료" << endl;
 	return true;
 }
 

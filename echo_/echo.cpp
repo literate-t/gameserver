@@ -8,19 +8,17 @@ using namespace std;
 int main(int argc, const char* argv[])
 {
 	//if (argc > 2) {
-	//	std::cout << "use proper parameter [option:[/server][/client]" << endl;
+	//	cout << "use proper parameter [option:[/server][/client]" << endl;
 	//	return 0;
 	//}
 	Socket socket;
 
-	////echo server
+	//echo server
 	//if (_strcmpi(argv[1], "/server") == 0) {
 	//	socket.InitSocket();
 	//	socket.BindandListen(SERVER_PORT);
 	//	socket.StartServer();
-	//	getchar();
 	//}
-
 	//echo client
 	//else if (_strcmpi(argv[1], "/client") == 0) {
 	//	socket.InitSocket();
@@ -30,7 +28,7 @@ int main(int argc, const char* argv[])
 	socket.Connect(SERVER_IP, SERVER_PORT);
 
 	//else {
-	//	std::cout << "use proper parameter [option:[/server][/client]" << endl;
+	//	cout << "use proper parameter [option:[/server][/client]" << endl;
 	//	return 0;
 	//}
 	return 0;

@@ -41,7 +41,7 @@ public:
 
 public:
 	Connection();
-	~Connection();
+	virtual ~Connection();
 
 	void			InitializeConnection();
 	bool			CreateConnection(INITCONFIG& initConfig);

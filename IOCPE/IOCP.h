@@ -6,7 +6,7 @@
 #include <WS2tcpip.h>
 #include <deque>
 
-#define MAX_SOCKBUF			1024
+#define MAX_SOCKBUF			16
 #define MAX_CLIENT			100
 #define MAX_WORKERTHREAD	4
 
@@ -19,7 +19,7 @@ struct OVERLAPPEDEX {
 	WSAOVERLAPPED	wasOverlapped;
 	SOCKET			socketClient;
 	WSABUF			wsaBuf;
-	char			buf[MAX_SOCKBUF];
+	char			buf[1024];
 	eOPERATION		op;
 };
 
@@ -27,20 +27,45 @@ typedef struct _CLIENTINFO {
 	SOCKET			socket;
 	OVERLAPPEDEX	recvOverlappedEx;
 	OVERLAPPEDEX	sendOverlappedEx;
-
+	int				index;
+	int				remainingDataSize;
+	int				totalSize;
+	int				readPos;
+	char			recvBuffer[1024];
+	char			sendBuffer[1024];
 	_CLIENTINFO()
 	{
 		ZeroMemory(&recvOverlappedEx, sizeof(OVERLAPPEDEX));
 		ZeroMemory(&sendOverlappedEx, sizeof(OVERLAPPEDEX));
 		socket = INVALID_SOCKET;
+		index = 0;
+		remainingDataSize = 0;
+		readPos = 0;
+		totalSize = 0;
+		ZeroMemory(recvBuffer, sizeof(recvBuffer));
+		ZeroMemory(sendBuffer, sizeof(recvBuffer));
 	}
+	bool IsConnected() { socket != INVALID_SOCKET ? true : false; }
+	void Clear()
+	{
+		ZeroMemory(&recvOverlappedEx, sizeof(OVERLAPPEDEX));
+		ZeroMemory(&sendOverlappedEx, sizeof(OVERLAPPEDEX));
+		socket = INVALID_SOCKET;
+		index = 0;
+		remainingDataSize = 0;
+		readPos = 0;
+		totalSize = 0;
+		ZeroMemory(recvBuffer, sizeof(recvBuffer));
+		ZeroMemory(sendBuffer, sizeof(recvBuffer));
+	}
+	
 }CLIENTINFO, *PCLIENTINFO;
 class IOCP
 {
 private:
 	// 클라이언트 정보 저장 
-	//CLIENTINFO*		m_pClientInfo;
-	std::deque<CLIENTINFO*> m_arrClientInfo;;
+	std::deque<CLIENTINFO>		m_clientPool;
+	std::deque<int>				m_clientPoolIndex;
 	// 클라이언트 접속을 받기 위한 리슨 소켓
 	SOCKET			m_socketListen;
 	// 접속되어 있는 클라이언트 수
@@ -62,11 +87,11 @@ public:
 	IOCP();
 	~IOCP();
 
-	//----서버 클라이언트 공통----//
+	bool Init(const int maxClient);
 	bool InitSocket();
+	int CreateClientPool(const int maxClient);
 	void CloseSocket(PCLIENTINFO& ClientInfo, bool bIsForce = false);
-
-	//----서버----//
+	
 	bool BindAndListen(const int& port);
 	bool StartServer();
 	// WaitingThread Queue에서 대기할 스레드 생성
@@ -74,17 +99,19 @@ public:
 	// Accept 요청을 처리할 스레드 생성
 	bool CreateAccepterThread();
 	// 사용하지 않는 클라이언트 정보 구조체를 반환
-	CLIENTINFO* GetEmptyClientInfo();
+	int GetEmptyClientInfo();
 	// CompletionPort 객체, 소켓, CompletionKey를 연결
 	bool BindIOCompletionPort(PCLIENTINFO& clientInfo);
+	// 패킷 처리
+	bool RecvProcess(PCLIENTINFO& clienfInfo, char* msg, size_t msgLength);
 	// WSARecv Overlapped I/O 작업
-	bool RecvMsg(PCLIENTINFO pClientInfo);
+	bool RecvMsg(PCLIENTINFO& pClientInfo);
 	// WSASend Overlapped I/O 작업
-	bool SendMsgToAll(PCLIENTINFO pClientInfo, const char* msg, const int len);
+	bool SendMsg(PCLIENTINFO& pClientInfo, char* msg, const int len);
+	bool SendMsg(PCLIENTINFO& pClientInfo, const int len);
 	// 완료된 Overlapped I/O 처리 스레드
 	void WorkerThread();
 	// 사용자 접속 받는 스레드
 	void AccepterThread();
 	void DestroyThread();
 };
-

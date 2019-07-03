@@ -26,6 +26,12 @@ void Connection::InitializeConnection()
 	m_ringSendBuffer.Initialize();
 }
 
+Connection::~Connection(void)
+{
+	m_sockListener = INVALID_SOCKET;
+	m_socket = INVALID_SOCKET;
+}
+
 bool Connection::CreateConnection(INITCONFIG& initConfig)
 {
 	m_nIndex = initConfig.nIndex;
@@ -50,7 +56,7 @@ bool Connection::BindAcceptExSock()
 	m_lpRecvOverlappedEx->s_WsaBuf.len = m_nRecvBuffSize;
 	m_lpRecvOverlappedEx->s_eOperation = OP_ACCEPT;
 	m_lpRecvOverlappedEx->s_lpConnection = this;
-	m_socket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
+	m_socket = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if (m_socket == INVALID_SOCKET) {
 		LOG(LOG_ERROR_NORMAL, "Connection::BindAcceptExSock() | WSASocket() Faild():error[%u]\n", GetLastError());
 		return false;
@@ -140,9 +146,9 @@ bool Connection::RecvPost(const char* next, DWORD dwRemain)
 	DWORD	dwRecvNumBytes = 0;
 
 	if (m_bIsConnected == false || m_lpRecvOverlappedEx == NULL)
-		return;
+		return false;
 	m_lpRecvOverlappedEx->s_eOperation = OP_RECV;
-	m_lpRecvOverlappedEx->s_dwRemain = dwRemain;
+	m_lpRecvOverlappedEx->s_dwRemain = dwRemain;	
 	int moveMark = dwRemain - (m_ringRecvBuffer.GetCurrentMark() - next); // ?
 	m_lpRecvOverlappedEx->s_WsaBuf.buf = m_ringRecvBuffer.ForwardMark(moveMark, m_nRecvBuffSize, dwRemain);
 

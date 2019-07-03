@@ -4,7 +4,6 @@
 #include <process.h>
 #include <stdio.h>
 #include <WS2tcpip.h>
-#include <deque>
 
 #define MAX_SOCKBUF			1024
 #define MAX_CLIENT			100
@@ -39,8 +38,7 @@ class IOCP
 {
 private:
 	// 클라이언트 정보 저장 
-	//CLIENTINFO*		m_pClientInfo;
-	std::deque<CLIENTINFO*> m_arrClientInfo;;
+	CLIENTINFO*		m_pClientInfo;
 	// 클라이언트 접속을 받기 위한 리슨 소켓
 	SOCKET			m_socketListen;
 	// 접속되어 있는 클라이언트 수
@@ -80,7 +78,7 @@ public:
 	// WSARecv Overlapped I/O 작업
 	bool RecvMsg(PCLIENTINFO pClientInfo);
 	// WSASend Overlapped I/O 작업
-	bool SendMsgToAll(PCLIENTINFO pClientInfo, const char* msg, const int len);
+	bool SendMsg(PCLIENTINFO pClientInfo, const char* msg, const int len);
 	// 완료된 Overlapped I/O 처리 스레드
 	void WorkerThread();
 	// 사용자 접속 받는 스레드

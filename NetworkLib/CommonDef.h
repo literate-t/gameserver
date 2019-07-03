@@ -71,9 +71,9 @@ typedef struct _OVERLAPPED_EX
 
 typedef struct _PROCESSPACKET
 {
-	eOperationType	s_eOperationType;
-	WPARAM			s_wParam;
-	LPARAM			s_lParam;
+	eOperationType	OperationType;
+	WPARAM			wParam;
+	LPARAM			lParam;
 	_PROCESSPACKET()
 	{
 		Init();

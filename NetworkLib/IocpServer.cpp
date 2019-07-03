@@ -2,7 +2,7 @@
 
 unsigned int WINAPI CallWorkerThread(LPVOID p);
 unsigned int WINAPI CallProcessThread(LPVOID p);
-IOCPServer* IOCPServer::m_pIocpServer = new IOCPServer();
+IOCPServer* IOCPServer::m_pIocpServer = NULL;// new IOCPServer();
 
 IOCPServer::IOCPServer(void)
 {
@@ -38,36 +38,33 @@ bool IOCPServer::ServerStart(INITCONFIG& initConfig)
 {
 	m_usPort				= initConfig.nServerPort;
 	m_dwWorkerThreadCount	= initConfig.nWorkerThreadCnt;
-	m_dwProcessThreadCount	= initConfig.nProcessThreadCnt;
-
+	m_dwProcessThreadCount  = initConfig.nProcessThreadCnt;
 	if (!InitializeSocket())		return false;
 	if (!CreateWorkerIOCP())		return false;
 	if (!CreateProcessIOCP())		return false;
 	if (!CreateWorkerThreads())		return false;
 	if (!CreateProcessThreads())	return false;
 	if (!CreateListenSock())		return false;
-
 	initConfig.sockListener = GetListenSocket();
 	if (m_lpProcessPacket)
 		delete[] m_lpProcessPacket;
 	m_lpProcessPacket = new PROCESSPACKET[initConfig.nProcessPacketCnt];
 	m_dwProcessPacketCnt = initConfig.nProcessPacketCnt;
-	return true;
+	return true;	
 }
 
 bool IOCPServer::ServerOff()
 {
 	LOG(LOG_INFO_LOW,
 		"SYSTEM | IOCPServer::ServerOff() | 서버 종료를 시작합니다.");
-
-	// 모든 쓰레드를 멈추고  완전히 종료 하기위해 뒷처리를 해준다.
+	// 모든 스레드를 중지하고 완전히 종료하기 위해 뒷처리
 	if (m_hWorkerIOCP)
 	{
 		m_bWorkThreadFlag = false;
-		for (DWORD i = 0; i < m_dwWorkerThreadCount; i++)
+		for (DWORD i = 0; i < m_dwWorkerThreadCount; ++i)
 		{
-			// WorkerThread에 종료 메시지를 보낸다.
-			PostQueuedCompletionStatus(m_hWorkerIOCP, 0, 0, NULL); // 어느 부분이 종료를 나타내나
+			// WorkerThread에 보내는 종료 메시지
+			PostQueuedCompletionStatus(m_hWorkerIOCP, 0, 0, NULL);
 		}
 		CloseHandle(m_hWorkerIOCP);
 		m_hWorkerIOCP = NULL;
@@ -75,34 +72,34 @@ bool IOCPServer::ServerOff()
 	if (m_hProcessIOCP)
 	{
 		m_bProcessThreadFlag = false;
-		for (DWORD i = 0; i < m_dwProcessThreadCount; i++)
+		for (DWORD i = 0; i < m_dwProcessThreadCount; ++i)
 		{
-			// ProcessThread에 종료 메시지를 보낸다.
+			// ProcessThread에 보내는 종료 메시지
 			PostQueuedCompletionStatus(m_hProcessIOCP, 0, 0, NULL);
 		}
 		CloseHandle(m_hProcessIOCP);
 		m_hProcessIOCP = NULL;
 	}
 
-	// 핸들을 닫는다.
-	for (unsigned int i = 0; i < m_dwWorkerThreadCount; i++)
+	// 스레드 핸들 닫기
+	for (size_t i = 0; i < m_dwWorkerThreadCount; ++i)
 	{
 		if (m_hWorkerThread[i] != INVALID_HANDLE_VALUE)
 			CloseHandle(m_hWorkerThread[i]);
 		m_hWorkerThread[i] = INVALID_HANDLE_VALUE;
 	}
-	// 핸들을 닫는다.
-	for (unsigned int i = 0; i < m_dwProcessThreadCount; i++)
+
+	// 스레드 핸들 닫기
+	for (size_t i = 0; i < m_dwProcessThreadCount; ++i)
 	{
 		if (m_hProcessThread[i] != INVALID_HANDLE_VALUE)
 			CloseHandle(m_hProcessThread[i]);
 		m_hProcessThread[i] = INVALID_HANDLE_VALUE;
 	}
 
-	if (m_ListenSock != INVALID_SOCKET)
-	{
-		closesocket(m_ListenSock);
-		m_ListenSock = INVALID_SOCKET;
+	if (m_listenSock != INVALID_SOCKET) {
+		closesocket(m_listenSock);
+		m_listenSock = INVALID_SOCKET;
 	}
 	LOG(LOG_INFO_LOW,
 		"SYSTEM | IOCPServer::ServerOff() | 서버가 완전히 종료 되었습니다.");
@@ -111,19 +108,16 @@ bool IOCPServer::ServerOff()
 
 bool IOCPServer::InitializeSocket()
 {
-	for (DWORD i = 0; i < m_dwWorkerThreadCount; i++)
+	for (DWORD i = 0; i < m_dwWorkerThreadCount; ++i)
 		m_hWorkerThread[i] = INVALID_HANDLE_VALUE;
+	m_hWorkerIOCP  = INVALID_HANDLE_VALUE;
+	m_hProcessIOCP = INVALID_HANDLE_VALUE;
+	m_listenSock = INVALID_SOCKET;
 
-	m_hWorkerIOCP	= INVALID_HANDLE_VALUE;
-	m_hProcessIOCP	= INVALID_HANDLE_VALUE;
-	m_ListenSock	= INVALID_SOCKET;
-
-	WSADATA		WsaData;
-	int nRet	= WSAStartup(MAKEWORD(2, 2), &WsaData);
-	if (nRet)
-	{
+	WSADATA wsaData;
+	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
 		LOG(LOG_ERROR_LOW,
-			"SYSTEM | IOCPServer::InitializeSocket() | WSAStartup() Failed..");
+			"SYSTEM | IOCPServer::InitializeSocket() | WSAStartup() Failed");
 		return false;
 	}
 	return true;
@@ -132,64 +126,43 @@ bool IOCPServer::InitializeSocket()
 // CPU개수를 파악하여 적당한 WorkerThread의 개수를 얻어온다(cpu*2 + 1)
 void IOCPServer::GetProperThreadsCount()
 {
-	SYSTEM_INFO		SystemInfo;
-	DWORD			ProperCount = 0;
-	DWORD			DispatcherCount = 0;
-	GetSystemInfo(&SystemInfo);
-	ProperCount = SystemInfo.dwNumberOfProcessors * 2 + 1;
-	if (ProperCount > MAX_WORKER_THREAD)
-		ProperCount = (DWORD)MAX_WORKER_THREAD;
-	m_dwWorkerThreadCount = ProperCount;
+	SYSTEM_INFO	sysInfo;
+	DWORD		properCount		= 0;
+	GetSystemInfo(&sysInfo);
+	properCount = sysInfo.dwNumberOfProcessors * 2 + 1;
+	if (properCount > MAX_WORKER_THREAD)
+		properCount = (DWORD)MAX_WORKER_THREAD;
+	m_dwWorkerThreadCount = properCount;
 }
 
 bool IOCPServer::CreateListenSock()
 {
-	SOCKADDR_IN	si_addr;
-	int			nRet;
-	int			nZero = 0;
-
-	// create listen socket.
-	m_ListenSock = WSASocket(AF_INET, SOCK_STREAM,
-		IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-	if (m_ListenSock == INVALID_SOCKET)
-	{
+	SOCKADDR_IN		sockAddr;
+	ZeroMemory(&sockAddr, sizeof(SOCKADDR_IN));
+	if ((m_listenSock = WSASocketW(AF_INET, SOCK_STREAM,
+		IPPROTO_IP, NULL, NULL, WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET) {
 		LOG(LOG_ERROR_LOW,
 			"SYSTEM | IOCPServer::CreateListenSock() | Socket Creation Failed : (%u)",
 			GetLastError());
 		return false;
 	}
 
-	// bind listen socket with si_addr struct.
-	si_addr.sin_family = AF_INET;
-	si_addr.sin_port = htons(m_usPort);
-	si_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
-	nRet = bind(m_ListenSock, (struct sockaddr*) & si_addr, sizeof(si_addr));
-
-	if (nRet == SOCKET_ERROR)
-	{
+	sockAddr.sin_family				= AF_INET;
+	sockAddr.sin_addr.S_un.S_addr	= htonl(INADDR_ANY);
+	sockAddr.sin_port				= htons(m_usPort);
+	if ((bind(m_listenSock, (SOCKADDR*)& sockAddr, sizeof(SOCKADDR))) == SOCKET_ERROR) {
 		LOG(LOG_ERROR_LOW,
 			"SYSTEM | IOCPServer::CreateListenSock() | bind() Failed : (%u)",
 			GetLastError());
-		return false;
+			return false;
 	}
-	// start listening..
-	nRet = listen(m_ListenSock, 50);
-
-	if (nRet == SOCKET_ERROR)
-	{
+	if ((listen(m_listenSock, 15)) == SOCKET_ERROR) {
 		LOG(LOG_ERROR_LOW,
 			"SYSTEM | IOCPServer::CreateListenSock() | listen() Failed : (%u)",
 			GetLastError());
 		return false;
 	}
-
-	HANDLE hIOCPHandle;
-	hIOCPHandle = CreateIoCompletionPort((HANDLE)m_ListenSock,
-		m_hWorkerIOCP, (DWORD)0, 0);
-
-	if (hIOCPHandle == NULL || m_hWorkerIOCP != hIOCPHandle)
-	{
+	if (CreateIoCompletionPort((HANDLE)m_listenSock, m_hWorkerIOCP, 0, 0) == NULL) {
 		LOG(LOG_ERROR_LOW,
 			"SYSTEM | IOCPServer::CreateListenSock() | CreateIoCompletionPort() Failed : (%u)",
 			GetLastError());
@@ -200,22 +173,16 @@ bool IOCPServer::CreateListenSock()
 
 bool IOCPServer::CreateProcessThreads()
 {
-	HANDLE	hThread;
-	UINT	uiThreadId;
-
-	// create worker thread.
-	for (DWORD dwCount = 0; dwCount < m_dwProcessThreadCount; ++dwCount)
-	{
-		hThread = (HANDLE)_beginthreadex(NULL, 0, &CallProcessThread,
-			this, CREATE_SUSPENDED, &uiThreadId);
-		if (hThread == NULL)
-		{
+	HANDLE hThread;
+	for (size_t i = 0; i < m_dwProcessThreadCount; ++i)	{
+		hThread = (HANDLE)_beginthreadex(NULL, 0, CallProcessThread, this, CREATE_SUSPENDED, NULL);
+		if (hThread == NULL) {
 			LOG(LOG_ERROR_LOW,
 				"SYSTEM | IOCPServer::CreateProcessThreads() | _beginthreadex() Failed : (%u)",
 				GetLastError());
 			return false;
 		}
-		m_hProcessThread[dwCount] = hThread;
+		m_hProcessThread[i] = hThread;
 		ResumeThread(hThread);
 		SetThreadPriority(hThread, THREAD_PRIORITY_TIME_CRITICAL);
 	}
@@ -224,21 +191,16 @@ bool IOCPServer::CreateProcessThreads()
 
 bool IOCPServer::CreateWorkerThreads()
 {
-	HANDLE	hThread;
-	UINT	uiThreadId;
-
-	for (DWORD dwCount = 0; dwCount < m_dwWorkerThreadCount; dwCount++)
-	{
-		hThread = (HANDLE)_beginthreadex(NULL, 0, &CallWorkerThread,
-			this, CREATE_SUSPENDED, &uiThreadId);
-		if (hThread == NULL)
-		{
+	HANDLE hThread;
+	for (size_t i = 0; i < m_dwWorkerThreadCount; ++i) {
+		hThread = (HANDLE)_beginthreadex(NULL, 0, CallWorkerThread, this, CREATE_SUSPENDED, NULL);
+		if (hThread == NULL) {
 			LOG(LOG_ERROR_LOW,
 				"SYSTEM | IOCPServer::CreateWorkerThreads() | _beginthreadex() Failed : (%u)",
 				GetLastError());
 			return false;
 		}
-		m_hWorkerThread[dwCount] = hThread;
+		m_hWorkerThread[i] = hThread;
 		ResumeThread(hThread);
 	}
 	return true;
@@ -272,47 +234,36 @@ bool IOCPServer::CreateProcessIOCP()
 
 void IOCPServer::WorkerThread()
 {
-	BOOL				bSuccess		= false;
-	LPOVERLAPPED		lpOverlapped	= NULL;
-	Connection*			lpConnection	= NULL;
-	LPOVERLAPPED_EX		lpOverlappedEx  = NULL;
-	DWORD				dwIoSize		= 0;
-
+	bool			success			= true;
+	LPOVERLAPPED	lpOverlapped	= NULL;
+	Connection*		lpConnection	= NULL;
+	LPOVERLAPPED_EX lpOverlappedEx	= NULL;
+	DWORD			dwIoSize		= 0;
+	
 	while (m_bWorkThreadFlag)
 	{
 		dwIoSize = 0;
 		lpOverlapped = NULL;
-		bSuccess = GetQueuedCompletionStatus(m_hWorkerIOCP,
-			&dwIoSize,
-			(PULONG_PTR)&lpConnection,
-			&lpOverlapped,
-			INFINITE);
-
-		//LPOVERLAPPED_EX lpOverlappedEx = (LPOVERLAPPED_EX)lpOverlapped;
-		lpOverlappedEx = reinterpret_cast<LPOVERLAPPED_EX>(lpOverlapped);
-		if (lpOverlappedEx == NULL)
-		{
+		success = GetQueuedCompletionStatus(m_hWorkerIOCP, &dwIoSize, (PULONG_PTR)& lpConnection, &lpOverlapped, INFINITE);
+		lpOverlappedEx = (LPOVERLAPPED_EX)lpOverlapped;
+		if (lpOverlappedEx = NULL) {
 			LOG(LOG_ERROR_LOW,
 				"SYSTEM | IOCPServer::WorkerThread() | GetQueuedCompletionStatus() Failed : (%u)",
 				GetLastError());
 			continue;
 		}
-		//client가 접속을 끊었을때..			
-		if (!bSuccess || (dwIoSize == 0 && lpOverlappedEx->s_eOperation != OP_ACCEPT))
-		{
-			if (lpOverlapped == NULL && lpConnection == NULL)
-			{
+		// 클라이언트가 접속을 끊었을 때
+		if (success == false || (dwIoSize == 0 && lpOverlappedEx->s_eOperation != OP_ACCEPT)) {
+			if (lpOverlapped == NULL && lpConnection == NULL) {
 				LOG(LOG_ERROR_LOW,
 					"SYSTEM | IOCPServer::WorkerThread() | GetQueuedCompletionStatus() Failed : (%u)",
 					GetLastError());
 				continue;
 			}
-			LPOVERLAPPED_EX lpOverlappedEx = (LPOVERLAPPED_EX)lpOverlapped;
-			lpConnection = reinterpret_cast<Connection*>(lpOverlappedEx->s_lpConnection);
-			if (lpConnection == NULL)
-				continue;
+			lpConnection = (Connection*)lpOverlappedEx->s_lpConnection;
+			if (lpConnection == NULL) continue;
 
-			//Overlapped I/O요청 되어있던 작업의 카운트를 줄인다.
+			// Overlapped IO 요청된 작업 카운트
 			if (lpOverlappedEx->s_eOperation == OP_ACCEPT)
 				lpConnection->DecrementAcceptIoRefCount();
 			else if (lpOverlappedEx->s_eOperation == OP_RECV)
@@ -328,7 +279,7 @@ void IOCPServer::WorkerThread()
 			case OP_ACCEPT:
 			{
 				DoAccept(lpOverlappedEx);
-				break;	
+				break;
 			}
 			case OP_RECV:
 			{
@@ -349,21 +300,17 @@ void IOCPServer::DoAccept(LPOVERLAPPED_EX lpOverlappedEx)
 	SOCKADDR* lpLocalSockAddr  = NULL;
 	SOCKADDR* lpRemoteSockAddr = NULL;
 
-	int	nLocalSockaddrLen  = 0;
-	int	nRemoteSockaddrLen = 0;
+	int localSockAddrLen  = 0;
+	int remoteSockAddrLen = 0;
 
 	Connection* lpConnection = (Connection*)lpOverlappedEx->s_lpConnection;
-	if (lpConnection == NULL)
-		return;
+	if (lpConnection == NULL) return;
+	lpConnection->DecrementAcceptIoRefCount();
 
-	lpConnection->DecrementAcceptIoRefCount();  // ?
-
-	//remote address를 알아낸다.
-	GetAcceptExSockaddrs(lpConnection->m_addressBuff, 0, sizeof(SOCKADDR_IN) + 16,
-		sizeof(SOCKADDR_IN) + 16, &lpLocalSockAddr, &nLocalSockaddrLen,
-		&lpRemoteSockAddr, &nRemoteSockaddrLen);
-
-	if (nRemoteSockaddrLen != 0)
+	// Remote Address 알아내기
+	GetAcceptExSockaddrs(lpConnection->m_addressBuff, 0, sizeof(SOCKADDR_IN) + 16, sizeof(SOCKADDR_IN) + 16, 
+		&lpLocalSockAddr, &localSockAddrLen, &lpRemoteSockAddr, &remoteSockAddrLen);
+	if (remoteSockAddrLen != 0)
 		lpConnection->SetConnectionIp(inet_ntoa(((SOCKADDR_IN*)lpRemoteSockAddr)->sin_addr));
 	else
 	{
@@ -373,43 +320,36 @@ void IOCPServer::DoAccept(LPOVERLAPPED_EX lpOverlappedEx)
 		CloseConnection(lpConnection);
 		return;
 	}
-	//bind Completion key & connection context
-	if (lpConnection->BindIOCP(m_hWorkerIOCP) == false)
-	{
+	// bind CompletionKey and Connection context
+	if (lpConnection->BindIOCP(m_hWorkerIOCP) == false) {
 		CloseConnection(lpConnection);
 		return;
 	}
 	lpConnection->m_bIsConnected = true;
-	if (lpConnection->RecvPost(lpConnection->m_ringRecvBuffer.GetBeginMark(), 0) == false)
-	{
+	if (lpConnection->RecvPost(lpConnection->m_ringRecvBuffer.GetBeginMark(), 0) == false) {
 		CloseConnection(lpConnection);
 		return;
 	}
-
 	OnAccept(lpConnection);
 }
 
 void IOCPServer::DoRecv(LPOVERLAPPED_EX lpOverlappedEx, DWORD dwIoSize)
 {
 	Connection* lpConnection = (Connection*)lpOverlappedEx->s_lpConnection;
-	if (lpConnection == NULL)
-		return;
+	if (lpConnection == NULL) return;
 	lpConnection->DecrementRecvIoRefCount();
-
-	int nMsgSize = 0, nRemain = 0;
-	char* pCurrent = NULL, * pNext = NULL;
-
-	nRemain = lpOverlappedEx->s_dwRemain;
+	int msgSize = 0, remain = 0;
+	char *current = NULL, *next = NULL;
+	remain = lpOverlappedEx->s_dwRemain;
 	lpOverlappedEx->s_WsaBuf.buf = lpOverlappedEx->s_lpSocketMsg;
+	// ?
 	lpOverlappedEx->s_dwRemain += dwIoSize;
 
 	if (lpOverlappedEx->s_dwRemain >= PACKET_SIZE_LENGTH)
-		CopyMemory(&nMsgSize, &(lpOverlappedEx->s_WsaBuf.buf[0]), PACKET_SIZE_LENGTH);
-	else
-		nMsgSize = 0;
-
-	//arrive wrong packet..
-	if (nMsgSize <= 0 || nMsgSize > lpConnection->m_ringRecvBuffer.GetBufferSize())
+		CopyMemory(&msgSize, lpOverlappedEx->s_WsaBuf.buf, PACKET_SIZE_LENGTH);
+	else msgSize = 0;
+	//Wrong packet arrived
+	if (msgSize <= 0 || msgSize > lpConnection->m_ringRecvBuffer.GetBufferSize())
 	{
 		LOG(LOG_ERROR_NORMAL,
 			"SYSTEM | IOCPServer::WorkerThread() | arrived wrong packet : (%u)",
@@ -417,37 +357,31 @@ void IOCPServer::DoRecv(LPOVERLAPPED_EX lpOverlappedEx, DWORD dwIoSize)
 		CloseConnection(lpConnection);
 		return;
 	}
-	lpOverlappedEx->s_nTotalBytes = nMsgSize;
+	lpOverlappedEx->s_nTotalBytes = msgSize;
 
-	// not all message recved.
-	if ((lpOverlappedEx->s_dwRemain < ((DWORD)nMsgSize)))
-	{
-		nRemain = lpOverlappedEx->s_dwRemain;
-		pNext = lpOverlappedEx->s_WsaBuf.buf;
-
+	// not all message received
+	if (lpOverlappedEx->s_dwRemain < (DWORD)msgSize) {
+		remain = lpOverlappedEx->s_dwRemain;
+		next = lpOverlappedEx->s_WsaBuf.buf;
 	}
-	else	//하나 이상의 패킷의 데이터를 모두 받았다면
-	{
-		pCurrent = &(lpOverlappedEx->s_WsaBuf.buf[0]);
-		int	  dwCurrentSize = nMsgSize;
-
-		nRemain = lpOverlappedEx->s_dwRemain;
-		if (ProcessPacket(lpConnection, pCurrent, dwCurrentSize) == false)
-			return;
-
-		nRemain -= dwCurrentSize;
-		pNext = pCurrent + dwCurrentSize;
-
+	// 하나 이상의 패킷 데이터를 다 받았다면
+	else {
+		current = lpOverlappedEx->s_WsaBuf.buf;
+		size_t dwCurrentSize = msgSize;
+		remain = lpOverlappedEx->s_dwRemain;
+		if (ProcessPacket(lpConnection, current, dwCurrentSize) == false) return;
+		// ?
+		remain -= dwCurrentSize;
+		next = current + dwCurrentSize;
 		while (true)
 		{
-			if (nRemain >= PACKET_SIZE_LENGTH)
+			if (remain >= PACKET_SIZE_LENGTH)
 			{
-
-				CopyMemory(&nMsgSize, pNext, PACKET_SIZE_LENGTH);
-				dwCurrentSize = nMsgSize;
+				CopyMemory(&msgSize, next, PACKET_SIZE_LENGTH);
+				dwCurrentSize = msgSize;
 
 				//arrive wrong packet..
-				if (nMsgSize <= 0 || nMsgSize > lpConnection->m_ringRecvBuffer.GetBufferSize())
+				if (msgSize <= 0 || msgSize > lpConnection->m_ringRecvBuffer.GetBufferSize())
 				{
 					LOG(LOG_ERROR_NORMAL,
 						"SYSTEM | IOCPServer::WorkerThread() | arrived wrong packet : (%u)",
@@ -457,23 +391,19 @@ void IOCPServer::DoRecv(LPOVERLAPPED_EX lpOverlappedEx, DWORD dwIoSize)
 					return;
 				}
 				lpOverlappedEx->s_nTotalBytes = dwCurrentSize;
-				if (nRemain >= dwCurrentSize)
+				if (remain >= dwCurrentSize)
 				{
 
-					if (ProcessPacket(lpConnection, pNext, dwCurrentSize) == false)
-						return;
-					nRemain -= dwCurrentSize;
-					pNext += dwCurrentSize;
+					if (ProcessPacket(lpConnection, next, dwCurrentSize) == false) return;
+					remain -= dwCurrentSize;
+					next += dwCurrentSize;
 				}
-				else
-					break;
+				else break;
 			}
-			else
-				break;
+			else break;
 		}
-
 	}
-	lpConnection->RecvPost(pNext, nRemain);
+	lpConnection->RecvPost(next, remain);
 }
 
 void IOCPServer::DoSend(LPOVERLAPPED_EX lpOverlappedEx, DWORD dwIoSize)
@@ -530,9 +460,9 @@ LPPROCESSPACKET IOCPServer::GetProcessPacket(eOperationType operationType, LPARA
 		return NULL;
 	}
 	LPPROCESSPACKET lpProcessPacket = &m_lpProcessPacket[m_dwProcessPacketCnt];
-	lpProcessPacket->s_eOperationType = operationType;
-	lpProcessPacket->s_lParam = lParam;
-	lpProcessPacket->s_wParam = wParam;
+	lpProcessPacket->OperationType = operationType;
+	lpProcessPacket->lParam = lParam;
+	lpProcessPacket->wParam = wParam;
 	return lpProcessPacket;
 }
 
@@ -576,7 +506,7 @@ bool IOCPServer::CloseConnection(Connection* lpConnection)
 {
 	//레퍼런스 카운트가 남아있다면 소켓을 끊고 iocp에서 completion될때가지 기다려야한다.
 	if (lpConnection->GetAcceptIoRefCount() != 0 ||
-		lpConnection->GetRecvIoRefCount() != 0   ||
+		lpConnection->GetRecvIoRefCount() != 0 ||
 		lpConnection->GetSendIoRefCount() != 0)
 	{
 		//소켓 초기화
@@ -626,28 +556,27 @@ void IOCPServer::ProcessThread()
 		if (TRUE == bSuccess && NULL == lpConnection)
 			break;
 
-		switch (lpProcessPacket->s_eOperationType)
+		switch (lpProcessPacket->OperationType)
 		{
-			case OP_CLOSE:
-			{
-				lpConnection->CloseConnection(true);
-				break;
-			}
-			case OP_RECVPACKET:
-			{
-				if (NULL == lpProcessPacket->s_lParam)
-					continue;
-				OnRecv(lpConnection, dwIoSize, (char*)lpProcessPacket->s_lParam);
-				lpConnection->m_ringRecvBuffer.ReleaseBuffer(dwIoSize);
-				break;
-			}
-			case OP_SYSTEM:
-			{
-				OnSystemMsg(lpConnection, (DWORD)lpProcessPacket->s_lParam, lpProcessPacket->s_wParam);
-				break;
-			}
+		case OP_CLOSE:
+		{
+			lpConnection->CloseConnection(true);
+			break;
 		}
-
+		case OP_RECVPACKET:
+		{
+			if (NULL == lpProcessPacket->lParam)
+				continue;
+			OnRecv(lpConnection, dwIoSize, (char*)lpProcessPacket->lParam);
+			lpConnection->m_ringRecvBuffer.ReleaseBuffer(dwIoSize);
+			break;
+		}
+		case OP_SYSTEM:
+		{
+			OnSystemMsg(lpConnection, (DWORD)lpProcessPacket->lParam, lpProcessPacket->wParam);
+			break;
+		}
+		}
 		ClearProcessPacket(lpProcessPacket);
 	}
 }

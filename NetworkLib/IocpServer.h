@@ -18,29 +18,28 @@ public:
 
 	virtual bool	ServerStart(INITCONFIG& initConfig);
 	virtual bool	ServerOff();
-	SOCKET			GetListenSocket()	{ return m_ListenSock; }
+	SOCKET			GetListenSocket()	{ return m_listenSock; }
 	unsigned short	GetServerPort()		{ return m_usPort; }
 	char*			GetServerIp()		{ return m_szIp; }
 	inline HANDLE	GetWorkerIOCP()		{ return m_hWorkerIOCP; }
-	void	DoAccept(LPOVERLAPPED_EX lpOverlappedEx);
-	void	DoRecv(LPOVERLAPPED_EX lpOverlappedEx, DWORD dwIoSize);
-	void	DoSend(LPOVERLAPPED_EX lpOverlappedEx, DWORD dwIoSize);
+	void			DoAccept(LPOVERLAPPED_EX lpOverlappedEx);
+	void			DoRecv(LPOVERLAPPED_EX lpOverlappedEx, DWORD dwIoSize);
+	void			DoSend(LPOVERLAPPED_EX lpOverlappedEx, DWORD dwIoSize);
 	LPPROCESSPACKET	GetProcessPacket(eOperationType operationType, LPARAM lParam, WPARAM wParam);
-	void	ClearProcessPacket(LPPROCESSPACKET lpProcessPacket);
+	void			ClearProcessPacket(LPPROCESSPACKET lpProcessPacket);
 	///////////////////////////////////////////////////////////////////////////////////
-
-	//////////////////////////////  순수 가상 함수   ///////////////////////////////
+	
 	//client가 접속될때 호출되는 함수
-	virtual	bool	OnAccept(Connection* lpConnection);
+	virtual	bool	OnAccept(Connection* lpConnection) = 0;
 	//client에서 packet이 도착하여 순서 성 있는 패킷을 처리할 때 호출되는 함수
-	virtual	bool	OnRecv(Connection* lpConnection, DWORD dwSize, char* pRecvedMsg);
+	virtual	bool	OnRecv(Connection* lpConnection, DWORD dwSize, char* pRecvedMsg) = 0;
 	//client에서 packet이 도착하여 순서 성 없는 패킷을 처리할 때 호출되는 함수
-	virtual	bool	OnRecvImmediately(Connection* lpConnection, DWORD dwSize, char* pRecvedMsg);
+	virtual	bool	OnRecvImmediately(Connection* lpConnection, DWORD dwSize, char* pRecvedMsg) = 0;
 	//client 접속 종료시 호출되는 함수
-	virtual	void	OnClose(Connection* lpConnection);
+	virtual	void	OnClose(Connection* lpConnection) = 0;
 	//서버에서 ProcessThread가 아닌 다른 쓰레드에서 발생시킨 
-	//메시지가 순서 성있게 처리되야 한다면 이 함수를 사용.
-	virtual bool	OnSystemMsg(Connection* lpConnection, DWORD dwMsgType, LPARAM lParam);
+	//메시지가 순서성있게 처리되야 한다면 이 함수를 사용.
+	virtual bool	OnSystemMsg(Connection* lpConnection, DWORD dwMsgType, LPARAM lParam) = 0;
 	/////////////////////////////////////////////////////////////////////////////////////
 
 	static IOCPServer* GetIocpServer() { return IOCPServer::m_pIocpServer; }
@@ -59,7 +58,7 @@ private:
 	IOCPServer& operator=(const IOCPServer& rhs);
 
 protected:
-	SOCKET				m_ListenSock;
+	SOCKET				m_listenSock;
 
 	HANDLE				m_hWorkerIOCP;
 	HANDLE				m_hProcessIOCP;
