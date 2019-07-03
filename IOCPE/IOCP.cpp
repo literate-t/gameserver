@@ -333,8 +333,7 @@ bool IOCP::RecvProcess(PCLIENTINFO& client, char* msg, size_t receivedLen)
 	if (client->remainingDataSize == 0) {
 		packet = (PACKET*)msg;
 		m = packet->msg;		
-		client->remainingDataSize = packet->length - PACKET_HEADER_SIZE;
-		client->totalSize = packet->length - PACKET_HEADER_SIZE;
+		client->totalSize = client->remainingDataSize = packet->length - PACKET_HEADER_SIZE;		
 		client->readPos = 0;
 		len = receivedLen - PACKET_HEADER_SIZE;
 	}
