@@ -170,7 +170,7 @@ bool Socket::Connect(const char* ip, USHORT port) {
 			}
 		}
 		sockBuf[recvLen] = NULL;
-		std::cout << "메시지수신: 수신bytes[" << recvLen << "], 내용:[" << sockBuf << "]" << std::endl;
+		std::cout << "메시지수신: 수신bytes[" << recvLen << "], 내용:[" << &sockBuf[PACKET_HEADER_SIZE] << "]" << std::endl;
 	}
 	CloseSocket(servSock);
 	std::cout << "클라이언트 정상 종료" << std::endl;

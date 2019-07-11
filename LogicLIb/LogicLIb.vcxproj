@@ -20,10 +20,9 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
-    <ProjectGuid>{D43C2899-18A7-4F14-A777-BB48BEB8B39B}</ProjectGuid>
-    <RootNamespace>IOCPE</RootNamespace>
+    <ProjectGuid>{08957E49-3202-4354-B394-DC31F8A2843F}</ProjectGuid>
+    <RootNamespace>LogicLIb</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>IOCP</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -40,7 +39,7 @@
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
@@ -124,20 +123,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="IOCP.cpp" />
-    <ClCompile Include="main.cpp" />
+    <ClCompile Include="Main.cpp" />
     <ClCompile Include="PacketProcess.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="IOCP.h" />
     <ClInclude Include="Main.h" />
     <ClInclude Include="PacketProcess.h" />
-    <ClInclude Include="Protocol.h" />
   </ItemGroup>
   <ItemGroup>
-    <Text Include="iocp_cpp.txt" />
-    <Text Include="iocp_header.txt" />
-    <Text Include="reference.txt" />
+    <ProjectReference Include="..\NetworkLib\NetworkLib.vcxproj">
+      <Project>{0ae7ffec-5847-421e-bde0-59d2ade56fbb}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

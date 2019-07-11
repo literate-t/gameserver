@@ -1,5 +1,4 @@
 #include "IOCP.h"
-#include "Protocol.h"
 
 // WSARecv와 WSASend의 Overlapped I/O 작업 처리를 위한 스레드
 unsigned int WINAPI CallWorkerThread(LPVOID p)
@@ -17,11 +16,20 @@ unsigned int WINAPI CallAccepterThread(LPVOID p)
 	return 0;
 }
 
+// PacketProcess를 위한 스레드
+unsigned int WINAPI CallPktProcessThread(LPVOID p)
+{
+	IOCP* pIocp = (IOCP*)p;
+	pIocp->PktProcessThread();
+	return 0;
+}
+
 IOCP::IOCP()
 {
 	// 초기화
-	m_bWorkerRun = true;
-	m_bAccepterRun = true;
+	m_bWorkerRun		= true;
+	m_bAccepterRun		= true;
+	m_bPktProcessRun	= true;
 	m_nClientCnt = 0;
 	m_hAccepterThread = NULL;
 	m_hIOCP = NULL;
@@ -36,6 +44,7 @@ IOCP::~IOCP()
 {
 	// 윈속의 사용을 끝낸다
 	WSACleanup();
+	Release();
 	// 다 사용한 객체를 삭제
 	//if (m_pClientInfo) {
 	//	delete[] m_pClientInfo;
@@ -45,10 +54,29 @@ IOCP::~IOCP()
 
 bool IOCP::Init(const int maxClient)
 {
+	// 초기화
+	m_bWorkerRun = true;
+	m_bAccepterRun = true;
+	m_bPktProcessRun = true;
+	m_nClientCnt = 0;
+	m_hAccepterThread = NULL;
+	m_hPktProcessThread = NULL;
+	m_hIOCP = NULL;
+	m_socketListen = NULL;
+	ZeroMemory(m_socketBuf, 1024);
+	for (int i = 0; i < MAX_WORKERTHREAD; ++i)
+		m_hWorkerThread[i] = NULL;
+
 	if (!InitSocket()) return false;
 	auto poolSize = CreateClientPool(maxClient);
 	printf("Client Pool Size:%d\n", poolSize);
 	return true;
+}
+
+void IOCP::Release()
+{
+	m_clientPool.clear();
+	m_clientPoolIndex.clear();
 }
 
 int IOCP::CreateClientPool(const int maxClient)
@@ -140,6 +168,19 @@ bool IOCP::CreateAccepterThread()
 	return true;
 }
 
+bool IOCP::CreatePktProcessThread()
+{
+	// Client의 접속 요청을 받는 스레드
+	m_hPktProcessThread = (HANDLE)_beginthreadex(NULL, 0, CallPktProcessThread, this, CREATE_SUSPENDED, NULL);
+	if (m_hPktProcessThread == NULL) {
+		printf("[PktProcessThread()] CreatePktProcessThread() error:%d", GetLastError());
+		return false;
+	}
+	ResumeThread(m_hPktProcessThread);
+	printf("PktProcessThread 시작\n");
+	return true;
+}
+
 bool IOCP::BindIOCompletionPort(PCLIENTINFO& pClientInfo)
 {
 	if (pClientInfo == NULL)
@@ -163,8 +204,9 @@ bool IOCP::StartServer()
 		printf("CreateIoCompletionPort() error:%d", GetLastError());
 		return false;
 	}
-	if (!CreateWorkerThread())	 return false;
-	if (!CreateAccepterThread()) return false;
+	if (!CreateWorkerThread())		return false;
+	if (!CreateAccepterThread())	return false;
+	if (!CreatePktProcessThread())	return false;
 	printf("서버 시작\n");
 	return true;
 }
@@ -245,7 +287,7 @@ void IOCP::AccepterThread()
 {
 	SOCKADDR_IN		sockAddr;
 	int addrLen = sizeof(SOCKADDR_IN);
-	while (m_hAccepterThread)
+	while (m_bAccepterRun)
 	{
 		// 접속을 받을 구조체의 인덱스
 		auto index = GetEmptyClientInfo();
@@ -277,8 +319,8 @@ void IOCP::WorkerThread()
 	DWORD dwIoSize = 0;
 	// IO를 위해 요청한 Overlapped 구조체를 받을 포인터
 	LPOVERLAPPED lpOverlapped = NULL;
-	static int recvCount = 1;
-	static int sendCount = 1;
+	//static int recvCount = 1;
+	//static int sendCount = 1;
 	while (m_bWorkerRun)
 	{
 		// 이 함수로 인해 스레드는 WatingThread Queue에 대기 상태로 들어간다
@@ -304,18 +346,18 @@ void IOCP::WorkerThread()
 		{
 			pOverlappedEx->buf[dwIoSize] = NULL;
 			if (!RecvProcess(pClientInfo, pOverlappedEx->buf, dwIoSize)) {
-				printf("recv count:%d\n", recvCount++);
+				//printf("recv count:%d\n", recvCount++);
 				continue;
 			}
-			printf("[수신][pOverlappedEx->buf] bytes:%d, msg:%s\n", dwIoSize, pClientInfo->recvBuffer);
+			//printf("[수신][pOverlappedEx->buf] bytes:%d, msg:%s\n", dwIoSize, pClientInfo->recvBuffer);
 			//SendMsg(pClientInfo, pOverlappedEx->buf, dwIoSize);
 			//SendMsg(pClientInfo, dwIoSize);
 			//RecvMsg(pClientInfo);
 		}
 		else if (pOverlappedEx->op == OP_SEND)
 		{
-			printf("send count:%d\n", sendCount++);
-			printf("[송신] bytes:%d, msg:%s\n", pClientInfo->totalSize, pOverlappedEx->buf);
+			//printf("send count:%d\n", sendCount++);
+			//printf("[송신] bytes:%d, msg:%s\n", pClientInfo->totalSize, pOverlappedEx->buf);
 			ZeroMemory(pOverlappedEx->buf, sizeof(pOverlappedEx->buf));
 		}
 		// 예외
@@ -324,36 +366,73 @@ void IOCP::WorkerThread()
 	}
 }
 
+void IOCP::PktProcessThread()
+{
+	while (m_bPktProcessRun) {
+		auto packet = GetPacket();
+		if (packet.Id == 0)
+			continue;
+		else
+			m_packetProcess.Process(packet);
+	}
+}
+
+PACKET IOCP::GetPacket()
+{
+	PACKET p;
+	if (!m_packetQueue.empty()) {
+		p = m_packetQueue.front();
+		m_packetQueue.pop_front();
+	}
+	return p;
+}
+
 bool IOCP::RecvProcess(PCLIENTINFO& client, char* msg, size_t receivedLen)
 {
+	//static int recvProcessCount = 0;
+	//printf("recvProCount:%d\n", ++recvProcessCount);
 	PACKET* packet	= NULL;
 	char*   m		= NULL;
-	int		len		= 0;
+	size_t	len		= 0;
 	// 패킷을 최초에 받을 때
 	if (client->remainingDataSize == 0) {
 		packet = (PACKET*)msg;
-		m = packet->msg;		
-		client->totalSize = client->remainingDataSize = packet->length - PACKET_HEADER_SIZE;		
+		//m = packet->msg;		
+		client->totalSize = packet->DataSize;		
+		client->remainingDataSize = packet->DataSize;// 패킷헤더 크기 포함
+		client->packetId = packet->Id;
 		client->readPos = 0;
-		len = receivedLen - PACKET_HEADER_SIZE;
 	}
-	// 처음 이후
-	else {
-		m = msg;
-		len = receivedLen;
-	}
+	len = receivedLen;
+	m = msg;
 	CopyMemory(&client->recvBuffer[client->readPos], m, len);
 	client->readPos += len;
 	client->remainingDataSize -= len;
-	// 데이터 전부 수신
+
+	// 패킷 데이터 전부 수신
 	if (client->remainingDataSize == 0) {
-		client->readPos = 0;		
-		SendMsg(client, client->totalSize);
+		client->readPos = 0;
+		PACKET pkt;
+		pkt.DataSize = (short)client->totalSize;
+		pkt.Id = client->packetId;
+		CopyMemory(pkt.msg, client->recvBuffer, strlen(client->recvBuffer));
+		AddPacketQueue(pkt);
+		//SendMsg(client, client->totalSize);
 		RecvMsg(client);
 		return true;
 	}
 	RecvMsg(client);
 	return false;
+}
+
+void IOCP::AddPacketQueue(PACKET& packet)
+{
+	m_packetQueue.emplace_back(packet);
+}
+
+void IOCP::SendData()
+{
+
 }
 
 void IOCP::DestroyThread()
@@ -365,12 +444,12 @@ void IOCP::DestroyThread()
 	}
 	for (int i = 0; i < MAX_WORKERTHREAD; ++i)
 	{
-		CloseHandle(m_hWorkerThread[i]);
 		WaitForSingleObject(m_hWorkerThread[i], INFINITE);
+		CloseHandle(m_hWorkerThread[i]);
 		//m_hWorkerThread[i] = NULL;
 	}
 	m_bAccepterRun = false;
-	CloseHandle(m_hAccepterThread);
 	WaitForSingleObject(m_hAccepterThread, INFINITE);
+	CloseHandle(m_hAccepterThread);
 	closesocket(m_socketListen);
 }
